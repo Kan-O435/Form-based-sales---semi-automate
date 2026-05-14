@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@tauri-apps/cli": "^2.11.1",
+    "playwright": "^1.60.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },
