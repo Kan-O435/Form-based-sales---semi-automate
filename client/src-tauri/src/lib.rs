@@ -16,6 +16,16 @@ async fn launch_browser(app: tauri::AppHandle, company_name: String) -> Result<(
             .spawn()
             .map_err(|e| format!("node の起動に失敗しました: {}", e))?;
 
+        // stderr を別スレッドで読んでフロントエンドに転送
+        if let Some(stderr) = child.stderr.take() {
+            let app_err = app.clone();
+            std::thread::spawn(move || {
+                for line in BufReader::new(stderr).lines().flatten() {
+                    let _ = app_err.emit("automation-status", format!("[エラー] {}", line));
+                }
+            });
+        }
+
         if let Some(stdout) = child.stdout.take() {
             for line in BufReader::new(stdout).lines().flatten() {
                 let _ = app.emit("automation-status", line);
