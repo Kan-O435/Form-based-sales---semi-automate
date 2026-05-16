@@ -2,6 +2,7 @@ import { useState } from 'react'
 import CompanyInput from './components/CompanyInput'
 import StatusLog from './components/StatusLog'
 import UserProfileForm from './components/UserProfileForm'
+import { useAutomation } from './hooks/useAutomation'
 import type { UserProfile } from './types'
 
 const defaultProfile: UserProfile = {
@@ -24,16 +25,8 @@ const defaultProfile: UserProfile = {
 
 export default function App() {
   const [companyName, setCompanyName] = useState('')
-  const [isRunning, setIsRunning] = useState(false)
-  const [logs, setLogs] = useState<string[]>([])
   const [profile, setProfile] = useState<UserProfile>(defaultProfile)
-
-  const handleRun = () => {
-    if (!companyName.trim()) return
-    setIsRunning(true)
-    setLogs([`「${companyName}」の問い合わせフォームを検索中...`])
-    // TODO: Playwright 連携
-  }
+  const { isRunning, logs, run } = useAutomation()
 
   return (
     <div className="min-h-screen bg-gray-50 flex items-start justify-center py-10 px-4">
@@ -45,7 +38,7 @@ export default function App() {
           <CompanyInput
             value={companyName}
             onChange={setCompanyName}
-            onRun={handleRun}
+            onRun={() => run(companyName)}
             isRunning={isRunning}
           />
           <StatusLog logs={logs} />
