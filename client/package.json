@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@tailwindcss/vite": "^4.3.0",
+    "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/cli": "^2.11.1",
     "playwright": "^1.60.0",
     "react": "^19.2.6",
