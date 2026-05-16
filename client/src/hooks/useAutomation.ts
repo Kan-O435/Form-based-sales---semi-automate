@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { useState, useEffect, useRef } from 'react'
+import type { UserProfile } from '../types'
 
 export function useAutomation() {
   const [isRunning, setIsRunning] = useState(false)
@@ -13,7 +14,7 @@ export function useAutomation() {
     }
   }, [])
 
-  const run = async (companyName: string) => {
+  const run = async (companyName: string, profile: UserProfile) => {
     if (isRunning || !companyName.trim()) return
 
     setIsRunning(true)
@@ -24,7 +25,7 @@ export function useAutomation() {
     })
 
     try {
-      await invoke('launch_browser', { companyName })
+      await invoke('launch_browser', { companyName, profile })
     } catch (err) {
       setLogs(prev => [...prev, `エラー: ${String(err)}`])
     } finally {
