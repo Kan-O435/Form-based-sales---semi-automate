@@ -2,14 +2,20 @@ use std::io::{BufRead, BufReader};
 use tauri::Emitter;
 
 #[tauri::command]
-async fn launch_browser(app: tauri::AppHandle, company_name: String) -> Result<(), String> {
+async fn launch_browser(
+    app: tauri::AppHandle,
+    company_name: String,
+    profile: serde_json::Value,
+) -> Result<(), String> {
     let script_path = concat!(env!("CARGO_MANIFEST_DIR"), "/../scripts/automation.js");
     let client_dir = concat!(env!("CARGO_MANIFEST_DIR"), "/..");
+    let profile_json = serde_json::to_string(&profile).map_err(|e| e.to_string())?;
 
     tauri::async_runtime::spawn_blocking(move || -> Result<(), String> {
         let mut child = std::process::Command::new("node")
             .arg(script_path)
             .arg(&company_name)
+            .arg(&profile_json)
             .current_dir(client_dir)
             .stdout(std::process::Stdio::piped())
             .stderr(std::process::Stdio::piped())
