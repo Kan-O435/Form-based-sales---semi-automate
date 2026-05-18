@@ -38,7 +38,7 @@ export default function App() {
           <CompanyInput
             value={companyName}
             onChange={setCompanyName}
-            onRun={() => run(companyName, profile)}
+            onRun={() => run(companyName, profile, () => setCompanyName(''))}
             isRunning={isRunning}
           />
           <StatusLog logs={logs} />
