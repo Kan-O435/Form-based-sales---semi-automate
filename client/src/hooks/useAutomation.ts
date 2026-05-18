@@ -3,7 +3,8 @@ import { listen } from '@tauri-apps/api/event'
 import { useState, useEffect, useRef } from 'react'
 import type { UserProfile } from '../types'
 
-const FILL_COMPLETE_MARKER = '━━━ 入力完了 ━━━'
+// [DONE:*] マーカーで自動化の完了を検知する
+const DONE_MARKER = '[DONE:'
 
 export function useAutomation() {
   const [isRunning, setIsRunning] = useState(false)
@@ -27,7 +28,7 @@ export function useAutomation() {
     unlistenRef.current = await listen<string>('automation-status', (event) => {
       setLogs(prev => [...prev, event.payload])
 
-      if (event.payload.includes(FILL_COMPLETE_MARKER) && !completedRef.current) {
+      if (event.payload.startsWith(DONE_MARKER) && !completedRef.current) {
         completedRef.current = true
         setIsRunning(false)
         unlistenRef.current?.()
