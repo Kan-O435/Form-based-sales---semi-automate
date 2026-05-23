@@ -1,3 +1,22 @@
+export type CompanyStatus =
+  | 'pending'
+  | 'running'
+  | 'success'
+  | 'no_contact_page'
+  | 'cloudflare_blocked'
+  | 'captcha_detected'
+  | 'form_parse_failed'
+  | 'submit_failed'
+  | 'validation_failed'
+  | 'inquiry_type_mismatch'
+  | 'unknown_error'
+
+export interface CompanyResult {
+  name: string
+  status: CompanyStatus
+  logs: string[]
+}
+
 export interface UserProfile {
   // 名前
   lastName: string
@@ -24,5 +43,6 @@ export interface UserProfile {
   address2: string        // 例: ○○ビル3F（任意）
 
   // 問い合わせ
+  subject: string
   message: string
 }

@@ -1,23 +1,66 @@
+---
+noteId: "52c697e0559911f1af11b173d55118b1"
+tags: []
+
+---
+
 # CLAUDE.md
 
 # Project Overview
 
-This project is a desktop application that semi-automates B2B contact form sales outreach.
+This project is a desktop application that automates B2B contact form sales outreach.
 
-The application allows a user to:
+The long-term goal is to create a semi-autonomous to fully-autonomous browser automation agent capable of processing large lists of companies and handling contact form outreach workflows.
 
-1. Input a company name
-2. Automatically search Google
-3. Open the company's official website
-4. Navigate to the contact page
-5. Detect the appropriate inquiry category
-6. Analyze the contact form structure
-7. Auto-fill the form fields
-8. Stop before final submission
+The application should eventually:
 
-The user manually verifies and submits the form.
+1. Search companies automatically
+2. Open official websites
+3. Detect contact/inquiry pages
+4. Analyze arbitrary form structures
+5. Fill forms automatically
+6. Handle validation and confirmation flows
+7. Submit forms when possible
+8. Continue queue processing automatically
+9. Preserve failed sessions for human recovery
 
-The application does NOT automatically submit forms.
+---
+
+# Human Recovery Workflow
+
+If automation fails due to:
+
+* Cloudflare
+* CAPTCHA
+* unexpected validation
+* unknown form structures
+* anti-bot systems
+
+the Chromium tab MUST remain open.
+
+The user should be able to manually review and complete the submission.
+
+This is a core system design principle.
+
+---
+
+# Browser Tab Lifecycle
+
+## Successful submission
+
+* Mark company as success
+* Save result
+* Close tab automatically
+* Continue to next company
+
+---
+
+## Failed submission
+
+* Preserve browser tab
+* Mark status as manual_review_required
+* Save failure information
+* Allow user to manually recover submission
 
 ---
 
@@ -26,15 +69,30 @@ The application does NOT automatically submit forms.
 This application combines:
 
 * Browser automation
-* AI-based form analysis
+* AI-assisted form understanding
 * Local desktop application architecture
+* Failure recovery workflows
+* Queue-based processing
 
 Traditional rule-based scraping is insufficient because contact forms vary significantly between websites.
 
 The application uses:
 
 * Playwright for browser automation
-* OpenAI API for flexible DOM/form interpretation
+* LLMs for DOM/form interpretation
+* SQLite for persistence and learning
+
+---
+
+# Long-Term Vision
+
+The system should eventually become:
+
+* a browser automation agent
+* a self-improving form automation engine
+* a queue-driven outreach system
+
+The application should learn from failures over time.
 
 ---
 
@@ -72,19 +130,41 @@ Responsibilities:
 * Contact page traversal
 * Form interaction
 * Input filling
+* Confirmation flow handling
+* Submission handling
 
 ---
 
 ## AI Integration
 
+The system should support multiple LLM providers.
+
+Initial provider:
+
 * OpenAI API
 
-Responsibilities:
+Future providers:
 
-* Contact page identification
-* Form field classification
-* Inquiry category selection
-* DOM interpretation
+* Ollama
+* Local LLMs
+* Claude API
+* Gemini API
+
+---
+
+## LLM Usage Philosophy
+
+LLM usage should be minimized whenever possible.
+
+Priority order:
+
+1. Deterministic logic
+2. Cached selectors
+3. Known form patterns
+4. Local LLM
+5. External API LLM
+
+The system should avoid unnecessary API costs.
 
 ---
 
@@ -99,6 +179,9 @@ Responsibilities:
 * AI analysis cache
 * Error logging
 * User profile persistence
+* Failure tracking
+* Status management
+* Learned selectors
 
 ---
 
@@ -108,17 +191,56 @@ Responsibilities:
 
 Do NOT overengineer early.
 
-The project should be built incrementally.
+The project should evolve incrementally.
 
-Start with:
+Priority order:
 
-1. Browser automation
-2. Contact page navigation
-3. Form input
-4. Persistence
-5. AI integration
+1. Stable browser automation
+2. Reliable status management
+3. Reliable form traversal
+4. Failure handling
+5. Persistence
+6. AI integration
+7. Autonomous recovery
 
-AI should be introduced AFTER the browser automation foundation is stable.
+---
+
+# Queue-Based Architecture
+
+The system should process companies as a queue.
+
+Example flow:
+
+```text
+Pending
+→ Processing
+→ Success / Failed / Manual Review
+```
+
+The queue should continue even if some companies fail.
+
+Failures must NOT stop the entire system.
+
+---
+
+# Status System
+
+Every company MUST have a status.
+
+Example statuses:
+
+```text
+success
+no_contact_page
+form_parse_failed
+captcha_detected
+cloudflare_blocked
+manual_review_required
+submit_failed
+validation_failed
+processing
+pending
+```
 
 ---
 
@@ -130,17 +252,18 @@ AI should be introduced AFTER the browser automation foundation is stable.
 * Official website access
 * Contact page discovery
 * Basic form detection
-* Automatic input filling
-* Stop before submission
+* Automatic form filling
+* Manual submission support
+* Failure preservation
 
 ---
 
-## Excluded Features (for now)
+## Excluded Features (initially)
 
-* Full auto-submit
 * CAPTCHA bypass
-* Parallel scaling
-* Multi-user support
+* Browser fingerprint spoofing
+* Distributed automation
+* Parallel multi-browser scaling
 * Cloud sync
 
 ---
@@ -156,10 +279,12 @@ src/
  ├── services/
  │     ├── playwright/
  │     ├── ai/
- │     └── db/
+ │     ├── db/
+ │     └── queue/
  ├── types/
  ├── utils/
- └── hooks/
+ ├── hooks/
+ └── store/
 ```
 
 ---
@@ -173,7 +298,8 @@ Responsible for:
 * Browser launch
 * Page navigation
 * Google search
-* Link traversal
+* Tab management
+* Queue traversal
 
 ---
 
@@ -195,6 +321,7 @@ Responsible for:
 * Parsing inputs
 * Understanding field meaning
 * Preparing mappings
+* Detecting unknown structures
 
 ---
 
@@ -206,6 +333,18 @@ Responsible for:
 * Select handling
 * Textarea handling
 * Validation handling
+* Confirmation flow handling
+
+---
+
+## QueueManager
+
+Responsible for:
+
+* Company queue processing
+* Retry management
+* Failure isolation
+* Status updates
 
 ---
 
@@ -216,6 +355,8 @@ Responsible for:
 * Sending DOM/html to LLM
 * Parsing AI responses
 * Field classification
+* Validation interpretation
+* Unknown form analysis
 
 ---
 
@@ -227,6 +368,7 @@ Responsible for:
 * Caching
 * Logging
 * Persistence
+* Learned selector storage
 
 ---
 
@@ -257,6 +399,7 @@ Important:
 * Respect robots/policies
 * Avoid spam-like behavior
 * Add delays when necessary
+* Avoid suspicious request frequency
 
 ---
 
@@ -297,6 +440,55 @@ Later:
 
 ---
 
+# Adaptive Form Handling
+
+The system should eventually support:
+
+* unknown forms
+* arbitrary field names
+* multi-step forms
+* dynamic validation
+* confirmation pages
+* checkbox agreements
+* privacy policy acceptance
+
+---
+
+# Inquiry Message Strategy
+
+The application should support multiple inquiry templates.
+
+Example:
+
+* 50 chars
+* 100 chars
+* 300 chars
+* 500 chars
+
+The system should automatically choose the best message based on:
+
+* maxlength
+* validation messages
+* textarea constraints
+
+---
+
+# Unknown Form Learning System
+
+When parsing fails:
+
+1. Save HTML
+2. Save screenshot
+3. Save DOM structure
+4. Save validation messages
+5. Save failed selectors
+
+The user should later review the failure and create new parsing logic.
+
+This is one of the most important future systems.
+
+---
+
 # AI Usage Policy
 
 AI should only assist where deterministic logic becomes unreliable.
@@ -306,6 +498,8 @@ Use AI for:
 * Ambiguous forms
 * Dynamic structures
 * Category classification
+* Validation interpretation
+* Unknown form analysis
 
 Do NOT use AI for:
 
@@ -324,6 +518,8 @@ Stores:
 * Company names
 * Website URLs
 * Processing status
+* Retry count
+* Failure reason
 
 ---
 
@@ -334,6 +530,18 @@ Stores:
 * Form URL
 * Parsed structure
 * Cached selectors
+* Validation patterns
+
+---
+
+## failed_forms
+
+Stores:
+
+* Failed HTML
+* Screenshots
+* DOM snapshots
+* Validation messages
 
 ---
 
@@ -343,7 +551,7 @@ Stores:
 
 * User identity
 * Contact details
-* Default outreach message
+* Outreach templates
 
 ---
 
@@ -353,9 +561,11 @@ The application must gracefully handle:
 
 * Missing forms
 * CAPTCHA
+* Cloudflare
 * Navigation failures
 * Dynamic rendering failures
 * Invalid selectors
+* Validation loops
 
 ---
 
@@ -363,11 +573,9 @@ The application must gracefully handle:
 
 The application MUST NOT:
 
-* Automatically submit forms
 * Bypass CAPTCHA
 * Ignore explicit anti-sales policies
-
-The user must manually review before submission.
+* Perform malicious automation
 
 ---
 
@@ -408,19 +616,31 @@ The user must manually review before submission.
 
 ## Phase 6
 
-* SQLite integration
+* Queue/status system
 
 ---
 
 ## Phase 7
 
-* OpenAI integration
+* SQLite integration
 
 ---
 
 ## Phase 8
 
-* Robust exception handling
+* Failure preservation system
+
+---
+
+## Phase 9
+
+* LLM integration
+
+---
+
+## Phase 10
+
+* Unknown form learning system
 
 ---
 
@@ -450,28 +670,17 @@ The user must manually review before submission.
 
 ---
 
-# Future Ideas
-
-Possible future improvements:
-
-* CSV bulk processing
-* CRM integration
-* CMS-specific optimization
-* Analytics dashboard
-* AI retry/recovery system
-* Contact Form 7 optimization
-* HubSpot optimization
-
----
-
 # Current Priority
 
-Current priority is NOT AI.
+Current priority is NOT advanced AI autonomy.
 
 Current priority is:
 
 1. Stable Playwright automation
 2. Reliable contact page traversal
 3. Reliable form extraction
+4. Queue management
+5. Failure preservation
+6. Status management
 
 Everything else comes later.
