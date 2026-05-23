@@ -3,6 +3,7 @@ import CompanyInput from './components/CompanyInput'
 import StatusLog from './components/StatusLog'
 import BatchResultTable from './components/BatchResultTable'
 import FailureDetails from './components/FailureDetails'
+import ManualReviewPrompt from './components/ManualReviewPrompt'
 import UserProfileForm from './components/UserProfileForm'
 import { useAutomation } from './hooks/useAutomation'
 import type { UserProfile } from './types'
@@ -58,7 +59,7 @@ function parseCompanies(text: string): string[] {
 export default function App() {
   const [companiesText, setCompaniesText] = useState('')
   const [profile, setProfile]             = useState<UserProfile>(loadProfile)
-  const { isRunning, currentLogs, results, runBatch, markAsSent } = useAutomation()
+  const { isRunning, currentLogs, results, runBatch, markAsSent, waitingForReview, confirmManualReview } = useAutomation()
 
   useEffect(() => {
     saveProfile(profile)
@@ -92,6 +93,14 @@ export default function App() {
           {/* 現在処理中企業のリアルタイムログ */}
           {(isRunning || currentLogs.length > 0) && (
             <StatusLog logs={currentLogs} currentCompany={currentName} />
+          )}
+
+          {/* 手動確認待ちプロンプト */}
+          {waitingForReview && (
+            <ManualReviewPrompt
+              companyName={waitingForReview.companyName}
+              onConfirm={confirmManualReview}
+            />
           )}
         </section>
 

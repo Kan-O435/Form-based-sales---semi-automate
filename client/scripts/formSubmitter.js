@@ -1,3 +1,5 @@
+import { findSubmitSelector } from './aiAnalyzer.js';
+
 // Phase 6: フォーム送信（確認ページ対応・最大3ステップ）
 // 戻り値: 'success' | 'validation_failed' | 'submit_failed'
 export async function trySubmit(page, attempt = 1) {
@@ -11,6 +13,28 @@ export async function trySubmit(page, attempt = 1) {
 
   const submitEl = await findSubmitButton(page, attempt);
   if (!submitEl) {
+    // ルールベースで見つからない場合は LLM にページ HTML を渡して特定する
+    console.log('  ルールベースで送信ボタンが見つかりません。AIで特定を試みます...');
+    const pageHtml = await page.evaluate(() =>
+      (document.body?.innerHTML || '').slice(0, 5000)
+    ).catch(() => '');
+    const aiSelector = await findSubmitSelector(pageHtml);
+    if (aiSelector) {
+      const aiEl = page.locator(aiSelector).first();
+      if (await aiEl.count() > 0) {
+        console.log(`  AI特定: セレクタ "${aiSelector}"`);
+        const urlBefore = page.url();
+        await aiEl.click();
+        await page.waitForLoadState('domcontentloaded', { timeout: 15000 }).catch(() => {});
+        await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
+        await new Promise(r => setTimeout(r, 800));
+        const pageText = await page.evaluate(() => document.body?.innerText ?? '').catch(() => '');
+        if (isSuccessPage(pageText) || page.url() !== urlBefore) {
+          console.log('送信が完了しました（AI送信）');
+          return 'success';
+        }
+      }
+    }
     console.log('送信ボタンが見つかりませんでした');
     return 'submit_failed';
   }
