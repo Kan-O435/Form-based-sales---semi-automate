@@ -30,6 +30,7 @@ export const FIELD_RULES = [
   { key: 'prefecture',    patterns: ['prefecture', 'pref', '都道府県', 'todofuken'] },
   { key: 'city',          patterns: ['city', 'town', '市区町村', 'municipality'] },
   { key: 'address1',      patterns: ['address', '住所', '番地', 'addr', '丁目', '番地以降'] },
-  { key: 'inquiryType',   patterns: ['type', 'category', '種別', '種類', 'inquiry_type', 'contact_type', 'お問い合わせ種別', 'お問い合わせ種類', '問い合わせ種別', '問い合わせの種類', 'subject', '件名カテゴリ'] },
+  { key: 'subject',       patterns: ['subject', '件名', 'お問い合わせ件名', 'inquiry_subject', 'title', 'タイトル'] },
+  { key: 'inquiryType',   patterns: ['type', 'category', '種別', '種類', 'inquiry_type', 'contact_type', 'お問い合わせ種別', 'お問い合わせ種類', '問い合わせ種別', '問い合わせの種類', '件名カテゴリ'] },
   { key: 'message',       patterns: ['message', 'content', 'body', '内容', '本文', 'detail', 'memo', 'お問い合わせ内容', '相談内容', 'inquiry', 'comment', 'remarks', 'note'] },
 ];

@@ -1,4 +1,5 @@
 import { FIELD_RULES } from './constants.js';
+import { classifyUnknownFields } from './aiAnalyzer.js';
 
 // Phase 4: フォームを解析してフィールドマッピングを生成
 export async function analyzeForm(page) {
@@ -179,6 +180,7 @@ export async function analyzeForm(page) {
 
   if (!rawFields || rawFields.length === 0) throw new Error('フォームが見つかりませんでした');
 
+  // ルールベースでマッピング
   const mappings = rawFields.map(field => {
     const targets = [field.name, field.id, field.placeholder, field.label].join(' ').toLowerCase();
     const matched = FIELD_RULES.find(rule =>
@@ -186,6 +188,23 @@ export async function analyzeForm(page) {
     );
     return { ...field, profileKey: matched?.key ?? null };
   });
+
+  // ルールベースで解決できなかったフィールドをAIで補完
+  const unknownFields = mappings
+    .map((f, i) => ({ field: f, index: i }))
+    .filter(({ field }) => field.profileKey === null);
+
+  if (unknownFields.length > 0) {
+    console.log(`  ルールベースで未解決のフィールドが ${unknownFields.length} 件。AIで分類します...`);
+    const aiResult = await classifyUnknownFields(unknownFields.map(({ field }) => field));
+    for (const { field, index } of unknownFields) {
+      const aiKey = aiResult[unknownFields.findIndex(u => u.index === index)];
+      if (aiKey) {
+        mappings[index] = { ...field, profileKey: aiKey };
+        console.log(`  AI分類: [${field.label || field.name || field.id || '不明'}] → ${aiKey}`);
+      }
+    }
+  }
 
   console.log(`フォームを発見しました（フィールド数: ${mappings.length}）`);
   for (const m of mappings) {
