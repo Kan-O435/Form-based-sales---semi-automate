@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { chromium } from 'playwright';
 import { DONE } from './constants.js';
 import { findOfficialSiteUrl } from './browserSearch.js';
@@ -9,6 +10,15 @@ import { trySubmit } from './formSubmitter.js';
 
 const companyName = process.argv[2] ?? '';
 const profile = JSON.parse(process.argv[3] ?? '{}');
+
+// 1社あたりの最大処理時間: 1分
+const MAX_MS = 60 * 1000;
+const globalTimer = setTimeout(() => {
+  console.log('タイムアウト: 処理時間が上限を超えました');
+  console.log(DONE.UNKNOWN_ERROR);
+  process.exit(1);
+}, MAX_MS);
+globalTimer.unref();
 
 async function run() {
   if (!companyName) {
@@ -23,13 +33,13 @@ async function run() {
     args: ['--disable-blink-features=AutomationControlled'],
   });
 
-  const waitForClose = () => new Promise(resolve => browser.on('disconnected', resolve));
-
   const page = await browser.newPage();
   await page.addInitScript(() => {
     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
   });
 
+  // keepOpen = true のとき Chrome プロセスを残したまま Node.js だけ終了する
+  // Chrome は独立したOSプロセスなので process.exit() しても閉じない
   let keepOpen = false;
 
   try {
@@ -43,7 +53,6 @@ async function run() {
 
     console.log(`公式サイトを発見: ${siteUrl}`);
     await page.goto(siteUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    // SPA（React/Vue/Nuxt等）対応: JSによる描画が完了するまで待つ
     await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
     console.log(`公式サイト取得完了: ${await page.title()}`);
 
@@ -72,7 +81,6 @@ async function run() {
 
     console.log('お問い合わせページへ移動中...');
     await page.goto(contactUrl, { waitUntil: 'domcontentloaded', timeout: 15000 });
-    // SPA対応: JSによる描画が完了するまで待つ
     await page.waitForLoadState('networkidle', { timeout: 8000 }).catch(() => {});
     console.log(`お問い合わせページ取得完了: ${await page.title()}`);
 
@@ -96,8 +104,10 @@ async function run() {
     try {
       mappings = await analyzeForm(page);
     } catch (e) {
-      console.log(`フォーム解析エラー: ${e.message}`);
-      console.log(DONE.FORM_PARSE_FAILED);
+      console.log(`フォーム解析に失敗しました: ${e.message}`);
+      console.log('タブを保持します。手動でフォームを入力してください。');
+      console.log(DONE.SUBMIT_FAILED);
+      keepOpen = true;
       return;
     }
     console.log(`マッピング完了: ${mappings.filter(m => m.profileKey).length}/${mappings.length} フィールドを認識`);
@@ -118,14 +128,14 @@ async function run() {
     }
 
     if (submitResult === 'validation_failed') {
-      console.log('入力内容にエラーがあります。タブを保持します。手動で確認してください。');
+      console.log('入力内容にエラーがあります。タブを保持します。手動で確認・送信してください。');
       console.log(DONE.VALIDATION_FAILED);
       keepOpen = true;
       return;
     }
 
     // submit_failed
-    console.log('送信に失敗しました。タブを保持します。手動で送信してください。');
+    console.log('送信ボタンの操作に失敗しました。タブを保持します。手動で送信してください。');
     console.log(DONE.SUBMIT_FAILED);
     keepOpen = true;
 
@@ -134,13 +144,24 @@ async function run() {
     console.log(DONE.UNKNOWN_ERROR);
     keepOpen = true;
   } finally {
+    clearTimeout(globalTimer);
+
     if (keepOpen) {
-      console.log('ブラウザを閉じると自動化が終了します。');
-      await waitForClose();
+      // タブを残したまま Node.js プロセスのみ終了する。
+      // Chrome は独立した OS プロセスなので、Node.js が終了しても閉じない。
+      // 次の企業は別の Chrome ウィンドウで起動される。
+      console.log('タブを残したまま次の企業へ進みます。');
+      process.exit(0);
     }
+
     try { await browser.close(); } catch { /* 既に閉じられている */ }
     console.log('ブラウザを終了しました');
+    process.exit(0);
   }
 }
 
-run();
+run().catch(e => {
+  console.log(`未処理エラー: ${e.message}`);
+  console.log(DONE.UNKNOWN_ERROR);
+  process.exit(1);
+});
