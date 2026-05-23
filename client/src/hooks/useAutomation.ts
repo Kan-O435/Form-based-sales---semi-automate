@@ -1,54 +1,62 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
-import { useState, useEffect, useRef } from 'react'
-import type { UserProfile } from '../types'
-
-// [DONE:*] マーカーで自動化の完了を検知する
-const DONE_MARKER = '[DONE:'
+import { useState } from 'react'
+import type { UserProfile, CompanyResult, CompanyStatus } from '../types'
 
 export function useAutomation() {
-  const [isRunning, setIsRunning] = useState(false)
-  const [logs, setLogs] = useState<string[]>([])
-  const unlistenRef = useRef<(() => void) | null>(null)
-  const completedRef = useRef(false)
+  const [isRunning, setIsRunning]     = useState(false)
+  const [currentLogs, setCurrentLogs] = useState<string[]>([])
+  const [results, setResults]         = useState<CompanyResult[]>([])
 
-  useEffect(() => {
-    return () => {
-      unlistenRef.current?.()
-    }
-  }, [])
-
-  const run = async (companyName: string, profile: UserProfile, onComplete?: () => void) => {
-    if (isRunning || !companyName.trim()) return
+  const runBatch = async (companies: string[], profile: UserProfile) => {
+    if (isRunning || companies.length === 0) return
 
     setIsRunning(true)
-    setLogs([])
-    completedRef.current = false
+    setResults(companies.map(name => ({ name, status: 'pending', logs: [] })))
+    setCurrentLogs([])
 
-    unlistenRef.current = await listen<string>('automation-status', (event) => {
-      setLogs(prev => [...prev, event.payload])
+    for (let i = 0; i < companies.length; i++) {
+      const companyName = companies[i]
 
-      if (event.payload.startsWith(DONE_MARKER) && !completedRef.current) {
-        completedRef.current = true
-        setIsRunning(false)
-        unlistenRef.current?.()
-        unlistenRef.current = null
-        onComplete?.()
+      setResults(prev => prev.map((r, idx) =>
+        idx === i ? { ...r, status: 'running', logs: [] } : r
+      ))
+      setCurrentLogs([])
+
+      let capturedStatus: CompanyStatus = 'unknown_error'
+      const companyLogs: string[] = []
+
+      const unlisten = await listen<string>('automation-status', (event) => {
+        companyLogs.push(event.payload)
+        setCurrentLogs(prev => [...prev, event.payload])
+        const match = event.payload.match(/^\[DONE:([^\]]+)\]$/)
+        if (match) {
+          capturedStatus = match[1] as CompanyStatus
+        }
+      })
+
+      try {
+        await invoke('launch_browser', { companyName, profile })
+      } catch {
+        // DONE マーカーが届いていれば capturedStatus は確定済み
+      } finally {
+        unlisten()
       }
-    })
 
-    try {
-      await invoke('launch_browser', { companyName, profile })
-    } catch (err) {
-      if (!completedRef.current) {
-        setLogs(prev => [...prev, `エラー: ${String(err)}`])
-      }
-    } finally {
-      setIsRunning(false)
-      unlistenRef.current?.()
-      unlistenRef.current = null
+      setResults(prev => prev.map((r, idx) =>
+        idx === i ? { ...r, status: capturedStatus, logs: [...companyLogs] } : r
+      ))
     }
+
+    setIsRunning(false)
   }
 
-  return { isRunning, logs, run }
+  // 手動送信済みとしてマークする（失敗 → 送信完了 に変更）
+  const markAsSent = (name: string) => {
+    setResults(prev => prev.map(r =>
+      r.name === name ? { ...r, status: 'success' } : r
+    ))
+  }
+
+  return { isRunning, currentLogs, results, runBatch, markAsSent }
 }

@@ -100,6 +100,14 @@ export default function UserProfileForm({ profile, onChange }: Props) {
       <p className="text-xs text-gray-400 mb-2">
         問い合わせ種別は「その他」を自動選択します。選択肢がない場合は送信をスキップします。
       </p>
+      <div className="flex flex-col gap-3 mb-3">
+        <Field
+          label="件名"
+          value={profile.subject}
+          onChange={set('subject')}
+          placeholder="お問い合わせ件名"
+        />
+      </div>
       <div className="flex flex-col gap-1">
         <label className="text-xs text-gray-500">テンプレートメッセージ</label>
         <textarea
