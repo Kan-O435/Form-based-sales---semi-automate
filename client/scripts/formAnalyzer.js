@@ -1,5 +1,5 @@
 import { FIELD_RULES } from './constants.js';
-import { classifyUnknownFields } from './aiAnalyzer.js';
+import { classifyUnknownFields, analyzeFormFromHtml } from './aiAnalyzer.js';
 
 // Phase 4: フォームを解析してフィールドマッピングを生成
 export async function analyzeForm(page) {
@@ -175,13 +175,20 @@ export async function analyzeForm(page) {
       });
     }
 
-    return result;
+    // フォームの HTML も取得する（LLM 全体解析用）
+    const formHtml = root
+      ? (root.outerHTML || '').slice(0, 8000)
+      : '';
+
+    return { fields: result, formHtml };
   });
 
-  if (!rawFields || rawFields.length === 0) throw new Error('フォームが見つかりませんでした');
+  if (!rawFields || rawFields.fields.length === 0) throw new Error('フォームが見つかりませんでした');
+
+  const { fields: rawFieldList, formHtml } = rawFields;
 
   // ルールベースでマッピング
-  const mappings = rawFields.map(field => {
+  const mappings = rawFieldList.map(field => {
     const targets = [field.name, field.id, field.placeholder, field.label].join(' ').toLowerCase();
     const matched = FIELD_RULES.find(rule =>
       rule.patterns.some(p => targets.includes(p.toLowerCase()))
@@ -189,19 +196,36 @@ export async function analyzeForm(page) {
     return { ...field, profileKey: matched?.key ?? null };
   });
 
-  // ルールベースで解決できなかったフィールドをAIで補完
-  const unknownFields = mappings
-    .map((f, i) => ({ field: f, index: i }))
-    .filter(({ field }) => field.profileKey === null);
+  const recognizedCount = mappings.filter(m => m.profileKey).length;
 
-  if (unknownFields.length > 0) {
-    console.log(`  ルールベースで未解決のフィールドが ${unknownFields.length} 件。AIで分類します...`);
-    const aiResult = await classifyUnknownFields(unknownFields.map(({ field }) => field));
-    for (const { field, index } of unknownFields) {
-      const aiKey = aiResult[unknownFields.findIndex(u => u.index === index)];
-      if (aiKey) {
-        mappings[index] = { ...field, profileKey: aiKey };
-        console.log(`  AI分類: [${field.label || field.name || field.id || '不明'}] → ${aiKey}`);
+  // 認識率が低い（半分未満）場合は HTML 全体を LLM に渡して一括分類する
+  if (recognizedCount < Math.ceil(mappings.length / 2) && formHtml) {
+    console.log(`  認識率が低いため (${recognizedCount}/${mappings.length})、フォームHTML全体をAIで解析します...`);
+    const htmlResult = await analyzeFormFromHtml(formHtml, mappings);
+    for (const [idx, key] of Object.entries(htmlResult)) {
+      const i = Number(idx);
+      if (key && mappings[i]) {
+        if (!mappings[i].profileKey || mappings[i].profileKey !== key) {
+          console.log(`  AI(HTML)分類: [${mappings[i].label || mappings[i].name || '不明'}] → ${key}`);
+          mappings[i] = { ...mappings[i], profileKey: key };
+        }
+      }
+    }
+  } else {
+    // ルールベースで解決できなかったフィールドのみメタデータで AI 分類
+    const unknownFields = mappings
+      .map((f, i) => ({ field: f, index: i }))
+      .filter(({ field }) => field.profileKey === null);
+
+    if (unknownFields.length > 0) {
+      console.log(`  未解決フィールドが ${unknownFields.length} 件。AIで分類します...`);
+      const aiResult = await classifyUnknownFields(unknownFields.map(({ field }) => field));
+      for (const { field, index } of unknownFields) {
+        const aiKey = aiResult[unknownFields.findIndex(u => u.index === index)];
+        if (aiKey) {
+          mappings[index] = { ...field, profileKey: aiKey };
+          console.log(`  AI分類: [${field.label || field.name || field.id || '不明'}] → ${aiKey}`);
+        }
       }
     }
   }
