@@ -3,18 +3,22 @@ import { listen } from '@tauri-apps/api/event'
 import { useState, useRef } from 'react'
 import type { UserProfile, CompanyResult, CompanyStatus } from '../types'
 
-// お問い合わせページまで到達したが送信できなかった場合に手動確認が必要なステータス
+// success 以外はすべて手動確認が必要
 const MANUAL_REVIEW_STATUSES: CompanyStatus[] = [
+  'no_contact_page',
+  'inquiry_type_mismatch',
   'submit_failed',
   'validation_failed',
   'form_parse_failed',
   'cloudflare_blocked',
   'captcha_detected',
+  'unknown_error',
 ]
 
 export interface ManualReviewState {
   companyName: string
   companyIndex: number
+  status: CompanyStatus
 }
 
 export function useAutomation() {
@@ -41,7 +45,15 @@ export function useAutomation() {
       setCurrentLogs([])
 
       let capturedStatus: CompanyStatus = 'unknown_error'
+      let capturedOutcome: 'success' | 'skipped' | null = null
       const companyLogs: string[] = []
+
+      // DONE イベント到達時に即座に使えるようハンドラを先に設定する
+      resolveReviewRef.current = (outcome: 'success' | 'skipped') => {
+        capturedOutcome = outcome
+        // Tauri の stdin 書き込み経由で Node.js を終了させる（fire and forget）
+        void invoke('release_browser')
+      }
 
       const unlisten = await listen<string>('automation-status', (event) => {
         companyLogs.push(event.payload)
@@ -49,10 +61,17 @@ export function useAutomation() {
         const match = event.payload.match(/^\[DONE:([^\]]+)\]$/)
         if (match) {
           capturedStatus = match[1] as CompanyStatus
+          // DONE 到達時点でプロンプトを表示する。この時点では Node.js が
+          // stdin 待ちのため Chromium はまだ開いている。
+          if (MANUAL_REVIEW_STATUSES.includes(capturedStatus)) {
+            setWaitingForReview({ companyName, companyIndex: i, status: capturedStatus })
+          }
         }
       })
 
       try {
+        // launch_browser は Node.js プロセスが終了するまでブロックする。
+        // 手動確認ケースでは release_browser 呼び出し後に Node.js が終了して戻る。
         await invoke('launch_browser', { companyName, profile })
       } catch {
         // DONE マーカーが届いていれば capturedStatus は確定済み
@@ -60,27 +79,22 @@ export function useAutomation() {
         unlisten()
       }
 
+      // launch_browser が戻った時点でユーザーは確認済み（手動確認ケース）
+      setWaitingForReview(null)
+      resolveReviewRef.current = null
+
+      const finalStatus: CompanyStatus =
+        MANUAL_REVIEW_STATUSES.includes(capturedStatus) && capturedOutcome === 'success'
+          ? 'success'
+          : capturedStatus
+
       setResults(prev => prev.map((r, idx) =>
-        idx === i ? { ...r, status: capturedStatus, logs: [...companyLogs] } : r
+        idx === i ? { ...r, status: finalStatus, logs: [...companyLogs] } : r
       ))
 
-      // 手動対応が必要なステータスの場合、ユーザーの確認を待ってからキューを再開
-      if (MANUAL_REVIEW_STATUSES.includes(capturedStatus)) {
-        setWaitingForReview({ companyName, companyIndex: i })
-
-        const outcome = await new Promise<'success' | 'skipped'>((resolve) => {
-          resolveReviewRef.current = resolve
-        })
-
-        setWaitingForReview(null)
-        resolveReviewRef.current = null
-
-        if (outcome === 'success') {
-          setResults(prev => prev.map((r, idx) =>
-            idx === i ? { ...r, status: 'success' } : r
-          ))
-        }
-      }
+      // React がこのレンダリングを完了させてから次の企業を開始する。
+      // setTimeout(0) で新しいマクロタスクに移ることでバッチ処理の境界を作る。
+      await new Promise(resolve => setTimeout(resolve, 0))
     }
 
     setIsRunning(false)

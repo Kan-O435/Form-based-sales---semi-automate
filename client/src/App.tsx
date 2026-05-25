@@ -99,6 +99,7 @@ export default function App() {
           {waitingForReview && (
             <ManualReviewPrompt
               companyName={waitingForReview.companyName}
+              status={waitingForReview.status}
               onConfirm={confirmManualReview}
             />
           )}

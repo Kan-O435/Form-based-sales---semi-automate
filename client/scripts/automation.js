@@ -48,6 +48,7 @@ async function run() {
     if (!siteUrl) {
       console.log(`「${companyName}」の公式サイトが見つかりませんでした`);
       console.log(DONE.NO_CONTACT_PAGE);
+      keepOpen = true;
       return;
     }
 
@@ -76,6 +77,7 @@ async function run() {
     if (!contactUrl) {
       console.log('お問い合わせページが見つかりませんでした');
       console.log(DONE.NO_CONTACT_PAGE);
+      keepOpen = true;
       return;
     }
 
@@ -115,7 +117,9 @@ async function run() {
     // Phase 5: フォーム入力
     const fillResult = await fillForm(page, mappings, profile);
     if (fillResult === 'inquiry_type_mismatch') {
+      console.log('問い合わせ種別が合致しませんでした。タブを保持します。手動で確認してください。');
       console.log(DONE.INQUIRY_TYPE_MISMATCH);
+      keepOpen = true;
       return;
     }
 
@@ -147,10 +151,15 @@ async function run() {
     clearTimeout(globalTimer);
 
     if (keepOpen) {
-      // タブを残したまま Node.js プロセスのみ終了する。
-      // Chrome は独立した OS プロセスなので、Node.js が終了しても閉じない。
-      // 次の企業は別の Chrome ウィンドウで起動される。
       console.log('タブを残したまま次の企業へ進みます。');
+      // stdin からのシグナルを待つことで Node.js プロセスを生かし続ける。
+      // Node.js が生きている間は Playwright の cleanup handler が走らないため
+      // Chromium が開いたままになる。Tauri が stdin に書き込んだ後に終了する。
+      await new Promise(resolve => {
+        process.stdin.resume();
+        process.stdin.setEncoding('utf8');
+        process.stdin.once('data', resolve);
+      });
       process.exit(0);
     }
 
