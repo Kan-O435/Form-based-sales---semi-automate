@@ -5,6 +5,17 @@ import { resolveValue } from './utils.js';
 export async function fillForm(page, mappings, profile) {
   console.log('フォームへの入力を開始します...');
 
+  // 姓・名どちらか一方しかない場合、そのフィールドにフルネームを入力する
+  const hasLastName  = mappings.some(m => m.profileKey === 'lastName');
+  const hasFirstName = mappings.some(m => m.profileKey === 'firstName');
+  if (hasLastName && !hasFirstName) {
+    mappings = mappings.map(m => m.profileKey === 'lastName'  ? { ...m, profileKey: 'fullName' } : m);
+    console.log('  姓フィールドのみ検出: フルネームとして入力します');
+  } else if (hasFirstName && !hasLastName) {
+    mappings = mappings.map(m => m.profileKey === 'firstName' ? { ...m, profileKey: 'fullName' } : m);
+    console.log('  名フィールドのみ検出: フルネームとして入力します');
+  }
+
   // 問い合わせ種別として認識されたフィールドに「その他」がない場合はスキップ
   const inquiryField = mappings.find(m => m.profileKey === 'inquiryType');
   if (inquiryField?.options.length > 0) {

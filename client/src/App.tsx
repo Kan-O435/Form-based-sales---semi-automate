@@ -59,7 +59,7 @@ function parseCompanies(text: string): string[] {
 export default function App() {
   const [companiesText, setCompaniesText] = useState('')
   const [profile, setProfile]             = useState<UserProfile>(loadProfile)
-  const { isRunning, currentLogs, results, runBatch, markAsSent, waitingForReview, confirmManualReview } = useAutomation()
+  const { isRunning, currentLogs, results, runBatch, markAsSent, waitingForReview, confirmManualReview, isFilling, fillCurrentPage } = useAutomation()
 
   useEffect(() => {
     saveProfile(profile)
@@ -101,6 +101,8 @@ export default function App() {
               companyName={waitingForReview.companyName}
               status={waitingForReview.status}
               onConfirm={confirmManualReview}
+              onFill={fillCurrentPage}
+              isFilling={isFilling}
             />
           )}
         </section>

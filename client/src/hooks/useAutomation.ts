@@ -26,6 +26,7 @@ export function useAutomation() {
   const [currentLogs, setCurrentLogs] = useState<string[]>([])
   const [results, setResults]         = useState<CompanyResult[]>([])
   const [waitingForReview, setWaitingForReview] = useState<ManualReviewState | null>(null)
+  const [isFilling, setIsFilling]     = useState(false)
 
   const resolveReviewRef = useRef<((outcome: 'success' | 'skipped') => void) | null>(null)
 
@@ -58,14 +59,18 @@ export function useAutomation() {
       const unlisten = await listen<string>('automation-status', (event) => {
         companyLogs.push(event.payload)
         setCurrentLogs(prev => [...prev, event.payload])
-        const match = event.payload.match(/^\[DONE:([^\]]+)\]$/)
-        if (match) {
-          capturedStatus = match[1] as CompanyStatus
+        const doneMatch = event.payload.match(/^\[DONE:([^\]]+)\]$/)
+        if (doneMatch) {
+          capturedStatus = doneMatch[1] as CompanyStatus
           // DONE 到達時点でプロンプトを表示する。この時点では Node.js が
           // stdin 待ちのため Chromium はまだ開いている。
           if (MANUAL_REVIEW_STATUSES.includes(capturedStatus)) {
             setWaitingForReview({ companyName, companyIndex: i, status: capturedStatus })
           }
+        }
+        // フォーム入力完了マーカーを検知して isFilling を解除する
+        if (event.payload.startsWith('[FILL_DONE:')) {
+          setIsFilling(false)
         }
       })
 
@@ -81,6 +86,7 @@ export function useAutomation() {
 
       // launch_browser が戻った時点でユーザーは確認済み（手動確認ケース）
       setWaitingForReview(null)
+      setIsFilling(false)
       resolveReviewRef.current = null
 
       const finalStatus: CompanyStatus =
@@ -107,6 +113,12 @@ export function useAutomation() {
     }
   }
 
+  // 現在 Chromium で開いているページのフォームを解析して入力する
+  const fillCurrentPage = () => {
+    setIsFilling(true)
+    void invoke('fill_current_page')
+  }
+
   // 手動送信済みとしてマークする（失敗 → 送信完了 に変更）
   const markAsSent = (name: string) => {
     setResults(prev => prev.map(r =>
@@ -114,5 +126,5 @@ export function useAutomation() {
     ))
   }
 
-  return { isRunning, currentLogs, results, runBatch, markAsSent, waitingForReview, confirmManualReview }
+  return { isRunning, currentLogs, results, runBatch, markAsSent, waitingForReview, confirmManualReview, isFilling, fillCurrentPage }
 }

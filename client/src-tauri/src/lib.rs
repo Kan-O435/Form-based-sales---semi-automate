@@ -18,15 +18,26 @@ const MANUAL_STATUSES: &[&str] = &[
     "unknown_error",
 ];
 
-/// ユーザー確認後に呼ばれる。stdin に書き込んで Node.js を終了させる。
+/// ユーザー確認後に呼ばれる。'exit' を送信して Node.js を終了させる。
 #[tauri::command]
 async fn release_browser(state: tauri::State<'_, AppState>) -> Result<(), String> {
     let mut guard = state.pending_stdin.lock().map_err(|e| e.to_string())?;
     if let Some(ref mut stdin) = *guard {
-        let _ = stdin.write_all(b"\n");
+        let _ = stdin.write_all(b"exit\n");
         let _ = stdin.flush();
     }
     *guard = None;
+    Ok(())
+}
+
+/// 現在開いている Chromium のページでフォーム解析・入力を実行する。
+#[tauri::command]
+async fn fill_current_page(state: tauri::State<'_, AppState>) -> Result<(), String> {
+    let mut guard = state.pending_stdin.lock().map_err(|e| e.to_string())?;
+    if let Some(ref mut stdin) = *guard {
+        let _ = stdin.write_all(b"fill\n");
+        let _ = stdin.flush();
+    }
     Ok(())
 }
 
@@ -107,7 +118,7 @@ pub fn run() {
             }
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![launch_browser, release_browser])
+        .invoke_handler(tauri::generate_handler![launch_browser, release_browser, fill_current_page])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }

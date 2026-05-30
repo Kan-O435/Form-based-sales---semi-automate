@@ -11,6 +11,13 @@ export const DONE = {
   UNKNOWN_ERROR:         '[DONE:unknown_error]',
 };
 
+// 手動フォーム入力試行の結果マーカー
+export const FILL_DONE = {
+  OK:       '[FILL_DONE:ok]',
+  MISMATCH: '[FILL_DONE:mismatch]',
+  ERROR:    '[FILL_DONE:error]',
+};
+
 // フィールド → プロフィールキーのマッピングルール
 // patterns は小文字で記述し、照合時に toLowerCase() で比較する
 export const FIELD_RULES = [

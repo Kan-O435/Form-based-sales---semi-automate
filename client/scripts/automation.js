@@ -1,6 +1,7 @@
 import 'dotenv/config';
+import { createInterface } from 'readline';
 import { chromium } from 'playwright';
-import { DONE } from './constants.js';
+import { DONE, FILL_DONE } from './constants.js';
 import { findOfficialSiteUrl } from './browserSearch.js';
 import { findContactPageUrl } from './contactFinder.js';
 import { detectBlock } from './blockDetector.js';
@@ -152,14 +153,10 @@ async function run() {
 
     if (keepOpen) {
       console.log('タブを残したまま次の企業へ進みます。');
-      // stdin からのシグナルを待つことで Node.js プロセスを生かし続ける。
-      // Node.js が生きている間は Playwright の cleanup handler が走らないため
-      // Chromium が開いたままになる。Tauri が stdin に書き込んだ後に終了する。
-      await new Promise(resolve => {
-        process.stdin.resume();
-        process.stdin.setEncoding('utf8');
-        process.stdin.once('data', resolve);
-      });
+      // Tauri からのコマンドを readline で受け取るループ。
+      // 'fill'  → 現在のページのフォームを解析して入力する
+      // 'exit'  → ループを抜けて Node.js を終了する
+      await runCommandLoop(page, profile);
       process.exit(0);
     }
 
@@ -167,6 +164,27 @@ async function run() {
     console.log('ブラウザを終了しました');
     process.exit(0);
   }
+}
+
+// Tauri からの stdin コマンドを受け取るループ
+async function runCommandLoop(page, profile) {
+  const rl = createInterface({ input: process.stdin, terminal: false });
+  for await (const line of rl) {
+    const cmd = line.trim();
+    if (cmd === 'exit') break;
+    if (cmd === 'fill') {
+      try {
+        console.log('現在のページのフォームを解析中...');
+        const mappings = await analyzeForm(page);
+        const result = await fillForm(page, mappings, profile);
+        console.log(result === 'ok' ? FILL_DONE.OK : FILL_DONE.MISMATCH);
+      } catch (e) {
+        console.log(`フォーム解析エラー: ${e.message}`);
+        console.log(FILL_DONE.ERROR);
+      }
+    }
+  }
+  rl.close();
 }
 
 run().catch(e => {

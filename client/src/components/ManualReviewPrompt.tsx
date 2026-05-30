@@ -4,6 +4,8 @@ interface Props {
   companyName: string
   status: CompanyStatus
   onConfirm: (outcome: 'success' | 'skipped') => void
+  onFill: () => void
+  isFilling: boolean
 }
 
 function statusMessage(status: CompanyStatus): string {
@@ -26,7 +28,7 @@ function statusMessage(status: CompanyStatus): string {
   }
 }
 
-export default function ManualReviewPrompt({ companyName, status, onConfirm }: Props) {
+export default function ManualReviewPrompt({ companyName, status, onConfirm, onFill, isFilling }: Props) {
   return (
     <div className="mt-4 p-5 bg-yellow-50 border-2 border-yellow-400 rounded-xl">
       <div className="flex items-center gap-2 mb-2">
@@ -36,6 +38,16 @@ export default function ManualReviewPrompt({ companyName, status, onConfirm }: P
       <p className="text-sm text-yellow-700 mb-4">
         <span className="font-semibold">{companyName}</span>：{statusMessage(status)}
       </p>
+
+      {/* フォーム解析・入力ボタン */}
+      <button
+        onClick={onFill}
+        disabled={isFilling}
+        className="w-full mb-3 py-2.5 bg-blue-500 hover:bg-blue-600 active:bg-blue-700 disabled:bg-blue-300 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition"
+      >
+        {isFilling ? '解析・入力中...' : '現在のページをフォーム解析して入力する'}
+      </button>
+
       <div className="flex gap-3">
         <button
           onClick={() => onConfirm('success')}
